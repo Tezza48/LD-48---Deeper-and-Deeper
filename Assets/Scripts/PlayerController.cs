@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
-public class PlayerController : MonoBehaviour
+public class PlayerController : GridEntity
 {
-    public Vector2Int position;
-
     public UnityEvent onPlayerMoved;
+
+    public int xp;
+    public int level;
 
     private void Awake()
     {

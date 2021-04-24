@@ -5,6 +5,8 @@ using UnityEngine;
 public class WorldController : MonoBehaviour
 {
     public PlayerController player;
+    public int hitPoints = 3;
+
     new public Camera camera;
 
     public int mapWidth = 16;
@@ -23,8 +25,14 @@ public class WorldController : MonoBehaviour
     public SpriteRenderer[,] cloneMap;
     public Transform cloneMapContainer;
 
-    public List<GameObject> Entities;
+    //public List<GameObject> Entities;
+
+    public List<EnemyState> enemies;
     //public SpriteRenderer[,] wrapMap; // Map used when player is close to the edge, to fill in the gaps
+    public List<GameObject> plants;
+
+    public float tickLength = 1.0f;
+    public float lastTickTime;
 
 
     private void OnValidate()
@@ -35,15 +43,87 @@ public class WorldController : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        lastTickTime = Time.time;
+
         GenerateMap();
         player.onPlayerMoved.AddListener(handlePlayerMoved);
         handlePlayerMoved();
+
+        Tick();
     }
 
     // Update is called once per frame
     void Update()
     {
+        if (lastTickTime + tickLength < Time.time)
+        {
+            lastTickTime = Time.time;
 
+            Tick();
+        }
+    }
+
+    void Tick()
+    {
+        foreach (var enemy in enemies)
+        {
+            float playerX = player.position.x;
+            float playerY = player.position.y;
+
+            var toPlayer = getWrappedDirectionTo(enemy, player);
+
+            if (Mathf.Abs(toPlayer.y) > 2.0) continue;
+
+            bool canHurt = toPlayer.sqrMagnitude < 1.5f;
+
+            if (Mathf.Abs(toPlayer.x) < 5)
+            {
+                if (Mathf.Abs(toPlayer.x) > 1.0)
+                {
+                    float xDir = Mathf.Clamp(toPlayer.x, -1, 1);
+
+                    enemy.position.x += (int)xDir;
+                    enemy.position.x = (mapWidth + enemy.position.x) % mapWidth;
+                }
+            }
+
+            if (!enemy.isLayerLocked)
+            {
+                enemy.position.y += Mathf.Clamp(toPlayer.y, -1, 1);
+            }
+
+            enemy.transform.position = (Vector2)enemy.position;
+        }
+    }
+
+    private Vector2Int getWrappedDirectionTo(GridEntity from, GridEntity to)
+    {
+        Vector2Int result = new Vector2Int();
+        result.y = to.position.y - from.position.y;
+
+
+        int reg = to.position.x - from.position.x;
+        int leftWrap = (to.position.x - mapWidth) - from.position.x;
+        int rightWrap = (to.position.x + mapWidth) - from.position.x;
+
+        int absReg = Mathf.Abs(reg);
+        int absLeft = Mathf.Abs(leftWrap);
+        int absRight = Mathf.Abs(rightWrap);
+
+        int minX = Mathf.Min(absReg, absLeft, absRight);
+
+        if (minX == absReg)
+        {
+            result.x = reg;
+        } else if (minX == absLeft)
+        {
+            result.x = leftWrap;
+        } else
+        {
+            result.x = rightWrap;
+        }
+
+        return result;
     }
 
     private void handlePlayerMoved()
@@ -65,7 +145,6 @@ public class WorldController : MonoBehaviour
             var layerDistToPlayer = Mathf.Abs(i - 2);
             var color = fogColourGradient.Evaluate(-(float)player.position.y / (float)mapDepth);
             color.a = ((float)layerDistToPlayer / 2.0f);
-            Debug.Log(color);
             fogLayers[i].color = color;
         }
 
