@@ -1,11 +1,18 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Linq;
+using UnityEngine.SceneManagement;
 
 public class WorldController : MonoBehaviour
 {
     public PlayerController player;
     public int hitPoints = 3;
+
+    public GameObject UI_HitpointContainer;
+    public GameObject UI_HitpointPrefab;
+
+    public List<GameObject> hitpointDisplays;
 
     new public Camera camera;
 
@@ -29,7 +36,7 @@ public class WorldController : MonoBehaviour
 
     public List<EnemyState> enemies;
     //public SpriteRenderer[,] wrapMap; // Map used when player is close to the edge, to fill in the gaps
-    public List<GameObject> plants;
+    public List<Plant> plants;
 
     public float tickLength = 1.0f;
     public float lastTickTime;
@@ -50,6 +57,12 @@ public class WorldController : MonoBehaviour
         handlePlayerMoved();
 
         Tick();
+
+        hitpointDisplays = new List<GameObject>();
+        for (int i = 0; i < hitPoints; i++)
+        {
+            hitpointDisplays.Add(Instantiate(UI_HitpointPrefab, UI_HitpointContainer.transform));
+        }
     }
 
     // Update is called once per frame
@@ -65,19 +78,41 @@ public class WorldController : MonoBehaviour
 
     void Tick()
     {
+        foreach (var plant in plants)
+        {
+            var toRemove = new List<EnemyState>();
+
+            enemies.ForEach((enemy) =>
+            {
+                var toEnemy = getWrappedDirectionTo(plant, enemy);
+                if (toEnemy.sqrMagnitude < 1.5)
+                {
+                    plant.Eat();
+                    toRemove.Add(enemy);
+                }
+            });
+
+            toRemove.ForEach((enemy) =>
+            {
+                Destroy(enemy.gameObject);
+                enemies.Remove(enemy);
+            });
+
+            plant.transform.position = (Vector2)plant.position;
+        }
+
         foreach (var enemy in enemies)
         {
-            float playerX = player.position.x;
-            float playerY = player.position.y;
-
             var toPlayer = getWrappedDirectionTo(enemy, player);
 
-            if (Mathf.Abs(toPlayer.y) > 2.0) continue;
-
-            bool canHurt = toPlayer.sqrMagnitude < 1.5f;
-
-            if (Mathf.Abs(toPlayer.x) < 5)
+            if (Mathf.Abs(toPlayer.y) <= 2 && Mathf.Abs(toPlayer.x) < 5)
             {
+                bool canHurt = toPlayer.sqrMagnitude < 1.5f;
+                if (canHurt)
+                {
+                    hurtPlayer();
+                }
+
                 if (Mathf.Abs(toPlayer.x) > 1.0)
                 {
                     float xDir = Mathf.Clamp(toPlayer.x, -1, 1);
@@ -85,14 +120,30 @@ public class WorldController : MonoBehaviour
                     enemy.position.x += (int)xDir;
                     enemy.position.x = (mapWidth + enemy.position.x) % mapWidth;
                 }
-            }
 
-            if (!enemy.isLayerLocked)
-            {
-                enemy.position.y += Mathf.Clamp(toPlayer.y, -1, 1);
+                if (!enemy.isLayerLocked)
+                {
+                    enemy.position.y += Mathf.Clamp(toPlayer.y, -1, 1);
+                }
             }
 
             enemy.transform.position = (Vector2)enemy.position;
+        }
+    }
+
+    void hurtPlayer()
+    {
+        hitPoints--;
+
+        for (int i = 0; i < hitpointDisplays.Count; i++)
+        {
+            hitpointDisplays[i].SetActive(i <= hitPoints);
+        }
+
+        if (hitPoints == 0)
+        {
+            // TODO WT: Add a transition.
+            SceneManager.LoadScene("MenuScene");
         }
     }
 
