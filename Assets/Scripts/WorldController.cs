@@ -16,8 +16,8 @@ public class WorldController : MonoBehaviour
 
     new public Camera camera;
 
-    public int mapWidth = 16;
-    public int mapDepth = 16;
+    public const int MAP_WIDTH = 16;
+    public const int MAP_HEIGHT = 32;
 
     public GameObject tilePrefab;
     public SpriteRenderer fogLayerPrefab;
@@ -34,9 +34,9 @@ public class WorldController : MonoBehaviour
 
     //public List<GameObject> Entities;
 
-    public List<EnemyState> enemies;
+    private List<EnemyState> enemies;
     //public SpriteRenderer[,] wrapMap; // Map used when player is close to the edge, to fill in the gaps
-    public List<Plant> plants;
+    private List<Plant> plants;
 
     public float tickLength = 1.0f;
     public float lastTickTime;
@@ -51,6 +51,9 @@ public class WorldController : MonoBehaviour
     void Start()
     {
         lastTickTime = Time.time;
+
+        plants = FindObjectsOfType<Plant>().ToList();
+        enemies = FindObjectsOfType<EnemyState>().ToList();
 
         GenerateMap();
         player.onPlayerMoved.AddListener(handlePlayerMoved);
@@ -98,7 +101,7 @@ public class WorldController : MonoBehaviour
                 enemies.Remove(enemy);
             });
 
-            plant.transform.position = (Vector2)plant.position;
+            plant.transform.position = (Vector2)plant.position; // Shouldn't need to do this but doing it anyway
         }
 
         foreach (var enemy in enemies)
@@ -118,7 +121,7 @@ public class WorldController : MonoBehaviour
                     float xDir = Mathf.Clamp(toPlayer.x, -1, 1);
 
                     enemy.position.x += (int)xDir;
-                    enemy.position.x = (mapWidth + enemy.position.x) % mapWidth;
+                    enemy.position.x = (MAP_WIDTH + enemy.position.x) % MAP_WIDTH;
                 }
 
                 if (!enemy.isLayerLocked)
@@ -154,8 +157,8 @@ public class WorldController : MonoBehaviour
 
 
         int reg = to.position.x - from.position.x;
-        int leftWrap = (to.position.x - mapWidth) - from.position.x;
-        int rightWrap = (to.position.x + mapWidth) - from.position.x;
+        int leftWrap = (to.position.x - MAP_WIDTH) - from.position.x;
+        int rightWrap = (to.position.x + MAP_WIDTH) - from.position.x;
 
         int absReg = Mathf.Abs(reg);
         int absLeft = Mathf.Abs(leftWrap);
@@ -180,32 +183,32 @@ public class WorldController : MonoBehaviour
     private void handlePlayerMoved()
     {
         // Clamp vertically
-        player.position.y = Mathf.Clamp(player.position.y, -mapDepth + 1, 0);
+        player.position.y = Mathf.Clamp(player.position.y, -MAP_HEIGHT + 1, 0);
 
         // Wrap horizontally
-        player.position.x = (mapWidth + player.position.x) % mapWidth;
+        player.position.x = (MAP_WIDTH + player.position.x) % MAP_WIDTH;
 
+        // TODO WT: Figure if i can lerp AND have it nicelywrap on the edges.
         player.transform.position = (Vector2)player.position;
+        camera.transform.position = new Vector3(player.transform.position.x, player.transform.position.y, camera.transform.position.z);
 
-        camera.transform.position = new Vector3(player.position.x, player.position.y, camera.transform.position.z);
-
-        cloneMapContainer.position = new Vector2((player.position.x < mapWidth / 2.0f) ? -mapWidth : mapWidth, 0.0f);
+        cloneMapContainer.position = new Vector2((player.position.x < MAP_WIDTH / 2.0f) ? -MAP_WIDTH : MAP_WIDTH, 0.0f);
 
         for(int i = 0; i < 5; i++)
         {
             var layerDistToPlayer = Mathf.Abs(i - 2);
-            var color = fogColourGradient.Evaluate(-(float)player.position.y / (float)mapDepth);
+            var color = fogColourGradient.Evaluate(-(float)player.position.y / (float)MAP_HEIGHT);
             color.a = ((float)layerDistToPlayer / 2.0f);
             fogLayers[i].color = color;
         }
 
-        camera.backgroundColor = fogColourGradient.Evaluate(-(float)player.position.y / (float)mapDepth);
+        camera.backgroundColor = fogColourGradient.Evaluate(-(float)player.position.y / (float)MAP_HEIGHT);
     }
 
     Color getColorVariant(int y)
     {
         float h, s, v;
-        Color.RGBToHSV(groundColorGradient.Evaluate((float)y / (float)mapDepth), out h, out s, out v);
+        Color.RGBToHSV(groundColorGradient.Evaluate((float)y / (float)MAP_HEIGHT), out h, out s, out v);
         h += UnityEngine.Random.value / 10.0f;
         s += UnityEngine.Random.value / 10.0f;
         v += UnityEngine.Random.value / 10.0f;
@@ -216,11 +219,11 @@ public class WorldController : MonoBehaviour
     public void GenerateMap()
     {
         mapContainer = new GameObject("MapContainer").transform;
-        mainMap = new SpriteRenderer[mapWidth, mapDepth];
+        mainMap = new SpriteRenderer[MAP_WIDTH, MAP_HEIGHT];
 
-        for (int y = 0; y < mapDepth; y++)
+        for (int y = 0; y < MAP_HEIGHT; y++)
         {
-            for (int x = 0; x < mapWidth; x++)
+            for (int x = 0; x < MAP_WIDTH; x++)
             {
                 var tile = Instantiate(tilePrefab, new Vector3(x, -y, 0.0f), Quaternion.identity, mapContainer);
                 var renderer = tile.GetComponent<SpriteRenderer>();
@@ -239,11 +242,11 @@ public class WorldController : MonoBehaviour
     public void GenerateMapClone()
     {
         cloneMapContainer = new GameObject("CloneMapContainer").transform;
-        cloneMap = new SpriteRenderer[mapWidth, mapDepth];
+        cloneMap = new SpriteRenderer[MAP_WIDTH, MAP_HEIGHT];
 
-        for (int y = 0; y < mapDepth; y++)
+        for (int y = 0; y < MAP_HEIGHT; y++)
         {
-            for (int x = 0; x < mapWidth; x++)
+            for (int x = 0; x < MAP_WIDTH; x++)
             {
                 cloneMap[x, y] = Instantiate(mainMap[x, y], cloneMapContainer);
             }
@@ -263,5 +266,11 @@ public class WorldController : MonoBehaviour
         {
             fogLayers[i] = Instantiate(fogLayerPrefab, player.position + new Vector2(0.0f, i -2.0f), Quaternion.identity, player.transform);
         }
+    }
+
+    private void OnDrawGizmos()
+    {
+
+        Gizmos.DrawWireCube(new Vector3(MAP_WIDTH / 2.0f, -MAP_HEIGHT / 2.0f) - new Vector3(0.5f, -0.5f), new Vector3(MAP_WIDTH, MAP_HEIGHT));
     }
 }
