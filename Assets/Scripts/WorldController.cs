@@ -77,6 +77,24 @@ public class WorldController : MonoBehaviour
 
             Tick();
         }
+
+        camera.transform.position = new Vector3(player.transform.position.x, player.transform.position.y, camera.transform.position.z);
+    }
+
+    IEnumerator TweenEntityPosition(GridEntity entity, Vector2Int direction)
+    {
+        var startPos = (Vector2)(entity.position - direction);
+        var endPos = (Vector2)(entity.position);
+
+        float startTime = Time.time;
+        float duration = 0.25f;
+        float endTime = startTime + duration;
+
+        while((Vector2)entity.transform.position != endPos)
+        {
+            entity.transform.position = Vector3.Lerp(startPos, endPos, (Time.time - startTime) / duration);
+            yield return new WaitForSecondsRealtime(0);
+        }
     }
 
     void Tick()
@@ -108,6 +126,8 @@ public class WorldController : MonoBehaviour
         {
             var toPlayer = getWrappedDirectionTo(enemy, player);
 
+            var moveDirection = Vector2Int.zero;
+
             if (Mathf.Abs(toPlayer.y) <= 2 && Mathf.Abs(toPlayer.x) < 5)
             {
                 bool canHurt = toPlayer.sqrMagnitude < 1.5f;
@@ -120,17 +140,22 @@ public class WorldController : MonoBehaviour
                 {
                     float xDir = Mathf.Clamp(toPlayer.x, -1, 1);
 
+                    moveDirection.x = (int)xDir;
+
                     enemy.position.x += (int)xDir;
                     enemy.position.x = (MAP_WIDTH + enemy.position.x) % MAP_WIDTH;
                 }
 
                 if (!enemy.isLayerLocked)
                 {
+                    moveDirection.y = toPlayer.y;
                     enemy.position.y += Mathf.Clamp(toPlayer.y, -1, 1);
                 }
             }
 
-            enemy.transform.position = (Vector2)enemy.position;
+            StartCoroutine(TweenEntityPosition(enemy, moveDirection));
+
+            //enemy.transform.position = (Vector2)enemy.position;
         }
     }
 
@@ -189,8 +214,8 @@ public class WorldController : MonoBehaviour
         player.position.x = (MAP_WIDTH + player.position.x) % MAP_WIDTH;
 
         // TODO WT: Figure if i can lerp AND have it nicelywrap on the edges.
-        player.transform.position = (Vector2)player.position;
-        camera.transform.position = new Vector3(player.transform.position.x, player.transform.position.y, camera.transform.position.z);
+        StartCoroutine(TweenEntityPosition(player, player.lastMoveDirection));
+        //player.transform.position = (Vector2)player.position;
 
         cloneMapContainer.position = new Vector2((player.position.x < MAP_WIDTH / 2.0f) ? -MAP_WIDTH : MAP_WIDTH, 0.0f);
 

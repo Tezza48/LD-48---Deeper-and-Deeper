@@ -6,6 +6,7 @@ using UnityEngine.Events;
 public class PlayerController : GridEntity
 {
     public UnityEvent onPlayerMoved;
+    public Vector2Int lastMoveDirection;
 
     public int xp;
     public int level;
@@ -48,6 +49,8 @@ public class PlayerController : GridEntity
     private void move(Vector2Int delta)
     {
         position += delta;
+
+        lastMoveDirection = delta;
 
         onPlayerMoved.Invoke();
     }
