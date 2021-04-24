@@ -4,98 +4,78 @@ using UnityEngine;
 
 public class WorldController : MonoBehaviour
 {
-    public Vector2Int playerPositionPolarTile;
-    public Transform playerView;
-    public Transform camera;
+    public PlayerController player;
+    new public Camera camera;
 
-    public SpriteMask ringParentPrefab;
-
-    public int numSegments = 16;
-    public float radius;
+    public int mapWidth = 16;
+    public int mapDepth = 16;
 
     public GameObject tilePrefab;
-    public float halfTileSize = 0.5f;
+    public SpriteRenderer fogLayerPrefab;
 
-    public Color tempTileColor;
+    public Gradient groundColorGradient;
+    public Gradient fogColourGradient;
+    public SpriteRenderer[] fogLayers;
 
-    public List<GameObject> tempTileDump;
-    public Transform[] instantiatedMap;
+    public SpriteRenderer[,] mainMap;
+    public Transform mapContainer;
 
-    public int mapDepth = 16; // How many rings in can we go.
+    public SpriteRenderer[,] cloneMap;
+    public Transform cloneMapContainer;
+
+    public List<GameObject> Entities;
+    //public SpriteRenderer[,] wrapMap; // Map used when player is close to the edge, to fill in the gaps
+
 
     private void OnValidate()
     {
-        radius = (numSegments / Mathf.PI) / 2.0f;
+
     }
 
     // Start is called before the first frame update
     void Start()
     {
-        tempTileDump = new List<GameObject>();
-        instantiatedMap = new Transform[mapDepth];
-
-        for (int i = 0; i < mapDepth; i++)
-        {
-            var ring = GenerateRing(i);
-            instantiatedMap[i] = ring;
-            ring.transform.parent = transform;
-        }
-
-        UpdateRingScales();
-        UpdatePositions();
+        GenerateMap();
+        player.onPlayerMoved.AddListener(handlePlayerMoved);
+        handlePlayerMoved();
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            UpdateRingScales();
-        }
 
-        // TODO WT: need collision checks
-        if (Input.GetButtonDown("Up"))
-        {
-            playerPositionPolarTile.y++;
-            UpdatePositions();
-            UpdateRingScales();
-        }
-
-        if (Input.GetButtonDown("Down"))
-        {
-            playerPositionPolarTile.y--;
-            UpdatePositions();
-            UpdateRingScales();
-        }
     }
 
-    void UpdatePositions()
+    private void handlePlayerMoved()
     {
-        playerView.position = new Vector2(0.0f, -radius);
-        camera.position = new Vector3(playerView.position.x, playerView.position.y, camera.position.z);
-    }
+        // Clamp vertically
+        player.position.y = Mathf.Clamp(player.position.y, -mapDepth + 1, 0);
 
-    void UpdateRingScales()
-    {
-        for(int i = 0; i < mapDepth; i++)
+        // Wrap horizontally
+        player.position.x = (mapWidth + player.position.x) % mapWidth;
+
+        player.transform.position = (Vector2)player.position;
+
+        camera.transform.position = new Vector3(player.position.x, player.position.y, camera.transform.position.z);
+
+        cloneMapContainer.position = new Vector2((player.position.x < mapWidth / 2.0f) ? -mapWidth : mapWidth, 0.0f);
+
+        for(int i = 0; i < 5; i++)
         {
-            var playerDist = i - playerPositionPolarTile.y;
-            var scale = 1.0f - ((float)playerDist / (float)mapDepth);
-
-            var ring = instantiatedMap[i];
-            ring.localScale = new Vector3(scale, scale, scale);
-
-            var mask = ring.GetComponent<SpriteMask>();
-            mask.alphaCutoff = (Mathf.Abs(playerDist) / 3.0f);
-
-            Debug.Log(scale);
+            var layerDistToPlayer = Mathf.Abs(i - 2);
+            var color = fogColourGradient.Evaluate(-(float)player.position.y / (float)mapDepth);
+            color.a = ((float)layerDistToPlayer / 2.0f);
+            Debug.Log(color);
+            fogLayers[i].color = color;
         }
+
+        camera.backgroundColor = fogColourGradient.Evaluate(-(float)player.position.y / (float)mapDepth);
     }
 
-    Color getColorVariant()
+    Color getColorVariant(int y)
     {
         float h, s, v;
-        Color.RGBToHSV(tempTileColor, out h, out s, out v);
+        Color.RGBToHSV(groundColorGradient.Evaluate((float)y / (float)mapDepth), out h, out s, out v);
         h += UnityEngine.Random.value / 10.0f;
         s += UnityEngine.Random.value / 10.0f;
         v += UnityEngine.Random.value / 10.0f;
@@ -103,25 +83,55 @@ public class WorldController : MonoBehaviour
         return Color.HSVToRGB(h, s, v);
     }
 
-    Transform GenerateRing(int ringDepthId)
+    public void GenerateMap()
     {
-        var parent = Instantiate(ringParentPrefab).transform;
-        parent.gameObject.name = "Ring_" + ringDepthId;
+        mapContainer = new GameObject("MapContainer").transform;
+        mainMap = new SpriteRenderer[mapWidth, mapDepth];
 
-        for(int i = 0; i < numSegments; i++)
+        for (int y = 0; y < mapDepth; y++)
         {
-            var theta = ((float)i /  (float)numSegments) * (Mathf.PI * 2.0f);
-            var x = Mathf.Cos(theta);
-            var y = Mathf.Sin(theta);
+            for (int x = 0; x < mapWidth; x++)
+            {
+                var tile = Instantiate(tilePrefab, new Vector3(x, -y, 0.0f), Quaternion.identity, mapContainer);
+                var renderer = tile.GetComponent<SpriteRenderer>();
+                renderer.color = getColorVariant(y);
+                // UV color for ease.
+                //renderer.color = new Color(x / (float)mapWidth, y/ (float)mapDepth, 0.0f);
 
-            var tile = Instantiate(tilePrefab, new Vector3(x, y, 0) * (radius - halfTileSize), Quaternion.Euler(new Vector3(0.0f, 0.0f, theta * Mathf.Rad2Deg)), parent);
-            tile.GetComponent<SpriteRenderer>().color = getColorVariant();
-            // UV color for ease.
-            tile.GetComponent<SpriteRenderer>().color = new Color(i / (float)numSegments, ringDepthId / (float)mapDepth, 0.0f);
-
-            tempTileDump.Add(tile);
+                mainMap[x, y] = renderer;
+            }
         }
 
-        return parent;
+        GenerateMapClone();
+        GenerateFogLayers();
+    }
+
+    public void GenerateMapClone()
+    {
+        cloneMapContainer = new GameObject("CloneMapContainer").transform;
+        cloneMap = new SpriteRenderer[mapWidth, mapDepth];
+
+        for (int y = 0; y < mapDepth; y++)
+        {
+            for (int x = 0; x < mapWidth; x++)
+            {
+                cloneMap[x, y] = Instantiate(mainMap[x, y], cloneMapContainer);
+            }
+        }
+    }
+
+    public void GenerateFogLayers()
+    {
+        fogLayers = new SpriteRenderer[5];
+
+        fogLayers[0] = Instantiate(fogLayerPrefab, player.position + new Vector2(0.0f, -4.0f), Quaternion.identity, player.transform);
+        fogLayers[4] = Instantiate(fogLayerPrefab, player.position + new Vector2(0.0f, 4.0f), Quaternion.identity, player.transform);
+
+        fogLayers[0].transform.localScale = fogLayers[4].transform.localScale = new Vector3(fogLayers[4].transform.localScale.x, 5.0f);
+
+        for(int i = 1; i < 4; i++)
+        {
+            fogLayers[i] = Instantiate(fogLayerPrefab, player.position + new Vector2(0.0f, i -2.0f), Quaternion.identity, player.transform);
+        }
     }
 }
