@@ -32,6 +32,12 @@ public class WorldController : MonoBehaviour
     public SpriteRenderer[,] cloneMap;
     public Transform cloneMapContainer;
 
+    public AudioClip playerMoveSound;
+    public AudioClip playerHurtSound;
+    public AudioClip plantEatSound;
+
+    public AudioSource audioSource;
+
     //public List<GameObject> Entities;
 
     private List<EnemyState> enemies;
@@ -121,6 +127,11 @@ public class WorldController : MonoBehaviour
                 enemies.Remove(enemy);
             });
 
+            if (toRemove.Count != 0)
+            {
+                audioSource.PlayOneShot(plantEatSound);
+            }
+
             plant.transform.position = (Vector2)plant.position; // Shouldn't need to do this but doing it anyway
         }
 
@@ -170,9 +181,11 @@ public class WorldController : MonoBehaviour
     {
         hitPoints--;
 
+        audioSource.PlayOneShot(playerHurtSound);
+
         for (int i = 0; i < hitpointDisplays.Count; i++)
         {
-            hitpointDisplays[i].SetActive(i <= hitPoints);
+            hitpointDisplays[i].SetActive(i < hitPoints);
         }
 
         if (hitPoints == 0)
@@ -219,6 +232,7 @@ public class WorldController : MonoBehaviour
 
         // Wrap horizontally
         player.position.x = (MAP_WIDTH + player.position.x) % MAP_WIDTH;
+        audioSource.PlayOneShot(playerMoveSound);
 
         if (player.moveTween != null)
         {
