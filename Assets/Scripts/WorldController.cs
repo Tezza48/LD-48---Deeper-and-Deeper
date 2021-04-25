@@ -99,7 +99,10 @@ public class WorldController : MonoBehaviour
             Tick();
         }
 
-        camera.transform.position = new Vector3(player.transform.position.x, player.transform.position.y, camera.transform.position.z);
+        if (player != null)
+        {
+            camera.transform.position = new Vector3(player.transform.position.x, player.transform.position.y, camera.transform.position.z);
+        }
     }
 
     IEnumerator TweenEntityPosition(GridEntity entity, Vector2Int direction)
@@ -122,6 +125,8 @@ public class WorldController : MonoBehaviour
 
     void Tick()
     {
+        if (player == null) return;
+
         foreach (var plant in plants)
         {
             if (plant.isExploded) continue;
@@ -292,6 +297,8 @@ public class WorldController : MonoBehaviour
         tryAgainText.SetActive(true);
         // Show Fail notification.
         StartCoroutine(DeferredLoadMenu(2));
+
+        Destroy(player.gameObject);
     }
 
     IEnumerator DeferredLoadMenu(float seconds)
