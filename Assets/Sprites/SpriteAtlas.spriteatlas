@@ -54,6 +54,7 @@ SpriteAtlas:
   - {fileID: 6961653080833796888, guid: 2ede9f63de964f241a99a9c4deae4d43, type: 3}
   - {fileID: 6266472923241529454, guid: 2ede9f63de964f241a99a9c4deae4d43, type: 3}
   - {fileID: -5282911695883833476, guid: 2ede9f63de964f241a99a9c4deae4d43, type: 3}
+  - {fileID: 7021449457718125206, guid: 2ede9f63de964f241a99a9c4deae4d43, type: 3}
   m_PackedSpriteNamesToIndex:
   - Spritesheet_0
   - Spritesheet_1
@@ -63,5 +64,6 @@ SpriteAtlas:
   - Spritesheet_5
   - Spritesheet_6
   - Spritesheet_7
+  - Spritesheet_8
   m_Tag: SpriteAtlas
   m_IsVariant: 0

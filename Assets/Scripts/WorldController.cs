@@ -10,9 +10,12 @@ public class WorldController : MonoBehaviour
     public int hitPoints = 3;
 
     public GameObject UI_HitpointContainer;
+    public GameObject UI_HitpointBossContainer;
     public GameObject UI_HitpointPrefab;
+    public GameObject UI_HitpointBossPrefab;
 
     public List<GameObject> hitpointDisplays;
+    public List<GameObject> hitpointBossDisplays;
 
     new public Camera camera;
 
@@ -35,14 +38,20 @@ public class WorldController : MonoBehaviour
     public AudioClip playerMoveSound;
     public AudioClip playerHurtSound;
     public AudioClip plantEatSound;
+    public AudioClip bossActivateSound;
+    public AudioClip bossMoveSound;
 
     public AudioSource audioSource;
+
+    public GameObject tryAgainText;
+    public GameObject youWinText;
 
     //public List<GameObject> Entities;
 
     private List<EnemyState> enemies;
     //public SpriteRenderer[,] wrapMap; // Map used when player is close to the edge, to fill in the gaps
     private List<Plant> plants;
+    public Boss boss;
 
     public float tickLength = 1.0f;
     public float lastTickTime;
@@ -72,6 +81,12 @@ public class WorldController : MonoBehaviour
         {
             hitpointDisplays.Add(Instantiate(UI_HitpointPrefab, UI_HitpointContainer.transform));
         }
+
+        hitpointBossDisplays = new List<GameObject>();
+        for (int i = 0; i < boss.hitpoints; i++)
+        {
+            hitpointBossDisplays.Add(Instantiate(UI_HitpointBossPrefab, UI_HitpointBossContainer.transform));
+        }
     }
 
     // Update is called once per frame
@@ -96,7 +111,7 @@ public class WorldController : MonoBehaviour
         float duration = 0.25f;
         float endTime = startTime + duration;
 
-        while((Vector2)entity.transform.position != endPos)
+        while(Time.time < endTime)
         {
             entity.transform.position = Vector3.Lerp(startPos, endPos, (Time.time - startTime) / duration);
             yield return new WaitForSecondsRealtime(0);
@@ -109,6 +124,8 @@ public class WorldController : MonoBehaviour
     {
         foreach (var plant in plants)
         {
+            if (plant.isExploded) continue;
+
             var toRemove = new List<EnemyState>();
 
             enemies.ForEach((enemy) =>
@@ -130,6 +147,34 @@ public class WorldController : MonoBehaviour
             if (toRemove.Count != 0)
             {
                 audioSource.PlayOneShot(plantEatSound);
+            }
+
+            if (boss != null && boss.isActive && plant.mature)
+            {
+                var toBoss = getWrappedDirectionTo(plant, boss);
+
+                if (toBoss.sqrMagnitude < 1.5)
+                {
+                    plant.Explode();
+                    boss.hitpoints--;
+                    // Play explode sound.
+                    audioSource.PlayOneShot(plantEatSound);
+
+                    for (int i = 0; i < hitpointBossDisplays.Count; i++)
+                    {
+                        hitpointBossDisplays[i].SetActive(i < boss.hitpoints);
+                    }
+
+                    if (boss.hitpoints <= 0)
+                    {
+                        // Display win screen.
+                        PlayWinSequence();
+
+                        Destroy(boss.gameObject);
+                        boss = null;
+                    }
+                }
+
             }
 
             plant.transform.position = (Vector2)plant.position; // Shouldn't need to do this but doing it anyway
@@ -161,19 +206,67 @@ public class WorldController : MonoBehaviour
 
                 if (!enemy.isLayerLocked)
                 {
-                    moveDirection.y = toPlayer.y;
-                    enemy.position.y += Mathf.Clamp(toPlayer.y, -1, 1);
+                    moveDirection.y = Mathf.Clamp(toPlayer.y, -1, 1);
+                    enemy.position.y += moveDirection.y;
                 }
             }
 
             if (enemy.moveTween != null)
             {
                 StopCoroutine(enemy.moveTween);
+                enemy.transform.position = (Vector2)enemy.position;
             }
 
             enemy.moveTween = StartCoroutine(TweenEntityPosition(enemy, moveDirection));
 
             //enemy.transform.position = (Vector2)enemy.position;
+        }
+
+        if (boss != null && boss.isActive)
+        {
+            var toPlayer = getWrappedDirectionTo(boss, player);
+
+            var moveDirection = Vector2Int.zero;
+
+            bool canHurt = toPlayer.sqrMagnitude < 1.5f;
+            if (canHurt)
+            {
+                hurtPlayer();
+            }
+
+            if (Mathf.Abs(toPlayer.x) > 1.0)
+            {
+                float xDir = Mathf.Clamp(toPlayer.x, -1, 1);
+
+                moveDirection.x = (int)xDir;
+
+                boss.position.x += (int)xDir;
+                boss.position.x = (MAP_WIDTH + boss.position.x) % MAP_WIDTH;
+            }
+            audioSource.PlayOneShot(bossMoveSound);
+
+            if (boss.moveTween != null)
+            {
+                StopCoroutine(boss.moveTween);
+                boss.transform.position = (Vector2)boss.position;
+            }
+
+            moveDirection.y = Mathf.Clamp(toPlayer.y, -1, 1);
+            boss.position.y += moveDirection.y;
+
+            boss.moveTween = StartCoroutine(TweenEntityPosition(boss, moveDirection));
+        } else
+        {
+            if (player.position.y < -25)
+            {
+                boss.isActive = true;
+                tickLength /= 2.0f;
+                // Play boss actifation sound.
+                audioSource.PlayOneShot(bossActivateSound);
+
+                // Activate boss health display
+                UI_HitpointBossContainer.SetActive(true);
+            }
         }
     }
 
@@ -190,9 +283,30 @@ public class WorldController : MonoBehaviour
 
         if (hitPoints == 0)
         {
-            // TODO WT: Add a transition.
-            SceneManager.LoadScene("MenuScene");
+            PlayDeathSequence();
         }
+    }
+
+    void PlayDeathSequence()
+    {
+        tryAgainText.SetActive(true);
+        // Show Fail notification.
+        StartCoroutine(DeferredLoadMenu(2));
+    }
+
+    IEnumerator DeferredLoadMenu(float seconds)
+    {
+        yield return new WaitForSeconds(seconds);
+
+        SceneManager.LoadScene("MenuScene");
+    }
+
+    void PlayWinSequence()
+    {
+        youWinText.SetActive(true);
+        audioSource.PlayOneShot(bossActivateSound);
+        // Show Success notification
+        StartCoroutine(DeferredLoadMenu(2));
     }
 
     private Vector2Int getWrappedDirectionTo(GridEntity from, GridEntity to)
@@ -243,13 +357,13 @@ public class WorldController : MonoBehaviour
 
         cloneMapContainer.position = new Vector2((player.position.x < MAP_WIDTH / 2.0f) ? -MAP_WIDTH : MAP_WIDTH, 0.0f);
 
-        for(int i = 0; i < 5; i++)
-        {
-            var layerDistToPlayer = Mathf.Abs(i - 2);
-            var color = fogColourGradient.Evaluate(-(float)player.position.y / (float)MAP_HEIGHT);
-            color.a = ((float)layerDistToPlayer / 2.0f);
-            fogLayers[i].color = color;
-        }
+        //for(int i = 0; i < 5; i++)
+        //{
+        //    var layerDistToPlayer = Mathf.Abs(i - 2);
+        //    var color = fogColourGradient.Evaluate(-(float)player.position.y / (float)MAP_HEIGHT);
+        //    color.a = ((float)layerDistToPlayer / 2.0f);
+        //    fogLayers[i].color = color;
+        //}
 
         camera.backgroundColor = fogColourGradient.Evaluate(-(float)player.position.y / (float)MAP_HEIGHT);
     }
@@ -283,7 +397,7 @@ public class WorldController : MonoBehaviour
         }
 
         GenerateMapClone();
-        GenerateFogLayers();
+        //GenerateFogLayers();
     }
 
     public void GenerateMapClone()

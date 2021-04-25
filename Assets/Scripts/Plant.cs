@@ -5,6 +5,7 @@ using UnityEngine;
 public class Plant : GridEntity
 {
     public bool mature = false;
+    public bool isExploded = false;
 
     public GameObject immatureView;
     public GameObject matureView;
@@ -14,5 +15,12 @@ public class Plant : GridEntity
         mature = true;
         immatureView.SetActive(false);
         matureView.SetActive(true);
+    }
+
+    public void Explode()
+    {
+        isExploded = true;
+        matureView.SetActive(false);
+        // TODO WT: Add exploded view.
     }
 }
