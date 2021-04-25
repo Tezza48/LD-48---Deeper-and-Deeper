@@ -95,6 +95,8 @@ public class WorldController : MonoBehaviour
             entity.transform.position = Vector3.Lerp(startPos, endPos, (Time.time - startTime) / duration);
             yield return new WaitForSecondsRealtime(0);
         }
+
+        entity.moveTween = null;
     }
 
     void Tick()
@@ -153,7 +155,12 @@ public class WorldController : MonoBehaviour
                 }
             }
 
-            StartCoroutine(TweenEntityPosition(enemy, moveDirection));
+            if (enemy.moveTween != null)
+            {
+                StopCoroutine(enemy.moveTween);
+            }
+
+            enemy.moveTween = StartCoroutine(TweenEntityPosition(enemy, moveDirection));
 
             //enemy.transform.position = (Vector2)enemy.position;
         }
@@ -213,9 +220,12 @@ public class WorldController : MonoBehaviour
         // Wrap horizontally
         player.position.x = (MAP_WIDTH + player.position.x) % MAP_WIDTH;
 
-        // TODO WT: Figure if i can lerp AND have it nicelywrap on the edges.
-        StartCoroutine(TweenEntityPosition(player, player.lastMoveDirection));
-        //player.transform.position = (Vector2)player.position;
+        if (player.moveTween != null)
+        {
+            StopCoroutine(player.moveTween);
+        }
+
+        player.moveTween = StartCoroutine(TweenEntityPosition(player, player.lastMoveDirection));
 
         cloneMapContainer.position = new Vector2((player.position.x < MAP_WIDTH / 2.0f) ? -MAP_WIDTH : MAP_WIDTH, 0.0f);
 
@@ -253,9 +263,7 @@ public class WorldController : MonoBehaviour
                 var tile = Instantiate(tilePrefab, new Vector3(x, -y, 0.0f), Quaternion.identity, mapContainer);
                 var renderer = tile.GetComponent<SpriteRenderer>();
                 renderer.color = getColorVariant(y);
-                // UV color for ease.
-                //renderer.color = new Color(x / (float)mapWidth, y/ (float)mapDepth, 0.0f);
-
+                renderer.color = getColorVariant(y);
                 mainMap[x, y] = renderer;
             }
         }

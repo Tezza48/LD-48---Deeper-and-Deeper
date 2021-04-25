@@ -1,10 +1,13 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 
 public class GridEntity : MonoBehaviour
 {
     public Vector2Int position;
 
     public GameObject[] views;
+
+    public Coroutine moveTween;
 
     private void OnValidate()
     {
